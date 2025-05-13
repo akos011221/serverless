@@ -1,8 +1,14 @@
 package cli
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -80,4 +86,66 @@ func RegisterCommands(rootCmd *cobra.Command, configFile string, log *logrus.Log
 	}
 
 	rootCmd.AddCommand(deployCmd, invokeCmd)
+}
+
+// deployFunction handles the deployment of a user function.
+func deployFunction(name string, config Config, log *logrus.Logger) error {
+	// Validate that the function directory exists
+	functionDir := filepath.Join("functions", name)
+	if _, err := os.Stat(functionDir); os.IsNotExist(err) {
+		return fmt.Errorf("function directory %s does not exist", functionDir)
+	}
+
+	// Compile the function into a binary
+	binaryPath := filepath.Join(functionDir, "function")
+	cmd := exec.Command("go", "build", "-o", binaryPath, ".")
+	cmd.Dir = functionDir
+	cmd.Stderr = os.Stderr // Forward compilation errors to user
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to compile function: %v", err)
+	}
+	log.WithField("function", name).Info("Function compiled")
+
+	// Create a minimal Dockerfile
+	dockerfile := `
+FROM golang:1.21
+COPY function /app/function
+ENTRYPOINT ["/app/function"]
+`
+	dockerfilePath := filepath.Join(functionDir, "Dockerfile")
+	if err := os.WriteFile(dockerfilePath, []byte(dockerfile), 0644); err != nil {
+		return fmt.Errorf("failed to create Dockerfile: %v", err)
+	}
+	log.WithField("function", name).Info("Dockerfile created")
+
+	// Build the Docker image
+	imageName := fmt.Sprintf("serverless-%s:latest", name)
+	cmd = exec.Command("docker", "build", "-t", imageName, ".")
+	cmd.Dir = functionDir
+	cmd.Stderr = os.Stderr // Show Docker errors to the user
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to build Docker image: %v", err)
+	}
+	log.WithField("function", name).Info("Docker image built")
+
+	// Register the function with the server via HTTP POST
+	metadata := map[string]string{
+		"name":    name,
+		"image":   imageName,
+		"runtime": "go",
+	}
+	body, _ := json.Marshal(metadata) // Safe to ignore error, as metadata is controlled
+	resp, err := http.Post(fmt.Sprintf("http://%s/functions", config.ServerAddr), "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("failed to register function with server: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Check server response
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("server returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }
