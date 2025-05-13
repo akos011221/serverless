@@ -89,6 +89,7 @@ func RegisterCommands(rootCmd *cobra.Command, configFile string, log *logrus.Log
 }
 
 // deployFunction handles the deployment of a user function.
+// It compiles the function, builds the Docker image, and registers it with the server.
 func deployFunction(name string, config Config, log *logrus.Logger) error {
 	// Validate that the function directory exists
 	functionDir := filepath.Join("functions", name)
@@ -148,4 +149,35 @@ ENTRYPOINT ["/app/function"]
 	}
 
 	return nil
+}
+
+// invokeFunction triggers a function execution by sending an HTTP request.
+// It passes the event JSON and return the function's response.
+func invokeFunction(name, eventJSON string, config Config, log *logrus.Logger) (string, error) {
+	// Validate the event JSON to catch syntax errors
+	var event interface{}
+	if err := json.Unmarshal([]byte(eventJSON), &event); err != nil {
+		return "", fmt.Errorf("invalid event JSON: %v", err)
+	}
+
+	// Send HTTP POST request to the server's invoke endpoint
+	body := bytes.NewBufferString(eventJSON)
+	resp, err := http.Post(fmt.Sprintf("http://%s/invoke/%s", config.ServerAddr, name), "application/json", body)
+	if err != nil {
+		return "", fmt.Errorf("failed to send invoke request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	result, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("server returned status %d: %s", resp.StatusCode, string(result))
+	}
+
+	log.WithField("function", name).Info("Function invoked successfully")
+	return string(result), nil
 }
