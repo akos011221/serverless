@@ -102,8 +102,12 @@ func deployFunction(name string, config Config, log *logrus.Logger) error {
 	}
 
 	// Compile the function into a binary
-	binaryPath := filepath.Join(functionDir, "function")
-	cmd := exec.Command("go", "build", "-o", binaryPath, ".")
+	cmd := exec.Command("go", "build", "-o", "function", ".")
+	cmd.Env = append(os.Environ(),
+		"CGO_ENABLED=0",
+		"GOOS=linux",
+		"GOARCH=amd64",
+	)
 	cmd.Dir = functionDir
 	cmd.Stderr = os.Stderr // Forward compilation errors to user
 	if err := cmd.Run(); err != nil {
@@ -113,7 +117,7 @@ func deployFunction(name string, config Config, log *logrus.Logger) error {
 
 	// Create a minimal Dockerfile
 	dockerfile := `
-FROM golang:1.21
+FROM golang:1.24
 COPY function /app/function
 ENTRYPOINT ["/app/function"]
 `
@@ -159,7 +163,7 @@ ENTRYPOINT ["/app/function"]
 // It passes the event JSON and return the function's response.
 func invokeFunction(name, eventJSON string, config Config, log *logrus.Logger) (string, error) {
 	// Validate the event JSON to catch syntax errors
-	var event interface{}
+	var event any
 	if err := json.Unmarshal([]byte(eventJSON), &event); err != nil {
 		return "", fmt.Errorf("invalid event JSON: %v", err)
 	}

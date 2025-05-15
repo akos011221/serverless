@@ -36,8 +36,11 @@ func NewOrchestrator(log *logrus.Logger) (*Orchestrator, error) {
 func (o *Orchestrator) Execute(ctx context.Context, function *storage.Function, event []byte) ([]byte, error) {
 	// Create container
 	resp, err := o.docker.ContainerCreate(ctx, &container.Config{
-		Image: function.Image,
-		Cmd:   []string{"/app/function"},
+		Image:       function.Image,
+		Cmd:         []string{"/app/function"},
+		OpenStdin:   true,
+		StdinOnce:   true,
+		AttachStdin: true,
 	}, nil, nil, nil, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create container: %v", err)
