@@ -1,7 +1,7 @@
-// This package acts as the user interface for interacting with the platform. It handles function
-// deployment (compiling the function, building a Docker image, and registering it with the server)
-// and function invocation (sending requests to trigger exectuion). It's the entry point for users
-// to interact via commands like `serverless deploy` and `serverless invoke`.
+// This package acts as the user interface for interacting with the platform. It handles function deployment
+// (compiling the function, building a Docker image, and registering it with the server) and function
+// invocation (sending requests to trigger exectuion). It's the entry point for users to interact
+// via commands like `serverless deploy` and `serverless invoke`.
 package cli
 
 import (

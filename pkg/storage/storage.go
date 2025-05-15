@@ -1,3 +1,5 @@
+// This package manages persistent storage for the platform. It uses SQLite and GORM, handles function metadata,
+// enabling the platform to register and retrieve details about the deployed functions.
 package storage
 
 import (
