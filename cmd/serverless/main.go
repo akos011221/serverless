@@ -58,7 +58,7 @@ func runServer(cmd *cobra.Command, args []string) {
 	// Run the server in goroutine to allow signal handling in the
 	// main thread
 	go func() {
-		if err := srv.Run(ctx, "localhost:8080"); err != nil {
+		if err := srv.Run(ctx); err != nil {
 			log.WithError(err).Fatal("Server stopped unexpectedly")
 		}
 	}()

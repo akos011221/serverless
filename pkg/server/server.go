@@ -163,8 +163,6 @@ func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("got result from orchestrator")
-
 	// Set response headers and write the function's output
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
